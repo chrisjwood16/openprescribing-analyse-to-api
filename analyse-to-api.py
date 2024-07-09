@@ -45,7 +45,7 @@ def check_for_mixed_code_types(codes):
     else:
         return False
 
-def extract_data(org_ids, num_ids):
+def extract_data(org, org_ids, num_ids):
     # Calculate number of API calls
     api_calls = calculate_api_calls(org_ids, num_ids)
     
@@ -157,27 +157,20 @@ if st.button("Get individual product data"):
         
         # Extract org and check for denomIds
         org = query_components.get('org', [''])[0]
-        if 'denomIds' in query_components:
-            st.write("Denominators not currently supported. Please remove the denominators and try again.")
-        else:
-            # Extract orgIds and numIds
-            org_ids = query_components.get('orgIds', [])[0].split(',') if 'orgIds' in query_components else []
-            num_ids = query_components.get('numIds', [])[0].split(',') if 'numIds' in query_components else []
-            # Check if orgIds is empty
-            if not org_ids:
-                st.write("Queries without organisation(s) are not currently supported. Please select an organisation and try again.")
-            else:
-                # Check for mixed code types
-                if check_for_mixed_code_types(num_ids):
-                    st.write("Warning: There may be a mixture of types of codes used (e.g. VMP, VTM), this may give unexpected results")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("Cancel"):
-                            st.write("Operation canceled.")
-                            # Handle cancellation process here
 
-                    with col2:
-                        if st.button("Continue"):
-                            extract_data(org_ids, num_ids)
-                else:
-                    extract_data(org_ids, num_ids)
+        # Extract orgIds and numIds
+        org_ids = query_components.get('orgIds', [])[0].split(',') if 'orgIds' in query_components else []
+        num_ids = query_components.get('numIds', [])[0].split(',') if 'numIds' in query_components else []
+
+        error_raised = False
+        # Check if orgIds is empty
+        if 'denomIds' in query_components:
+            error_raised = True
+            st.error('Denominators not currently supported. Please remove the denominators and try again.', icon="🚨")
+        if not org_ids:
+            error_raised = True
+            st.error('Queries without organisation(s) are not currently supported. Please select an organisation and try again.', icon="🚨")
+        elif check_for_mixed_code_types(num_ids):
+            st.warning('There may be a mixture of types of codes used in your query (e.g. VMP, VTM), this may give unexpected results e.g. double counting if there is overlap. Please check your query carefully.', icon="⚠️")
+        if not error_raised:
+            extract_data(org, org_ids, num_ids)
