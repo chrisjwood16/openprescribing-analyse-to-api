@@ -49,12 +49,12 @@ def check_for_mixed_code_types(codes):
 st.title("OpenPrescribing Individual Product Extractor")
 
 # Description
-st.write("""
+st.write(f"""
     This app takes an <a href="https://openprescribing.net/analyse/">OpenPrescribing analyse URL</a> and uses the 
     <a href="https://openprescribing.net/api/">OpenPrescribing API</a> to extract data on the specified chemical, presentation 
     or BNF section for the selected organisations. Results can be downloaded as a CSV file for further analysis. 
     Please note this tool does not currently support requests that contain a denominator and all requests must include an organisation. 
-    To prevent performance issues the app is limited to 20 calls to the API. If your request exceeds this limit 
+    To prevent performance issues the app is limited to {API_CALL_LIMIT} calls to the API. If your request exceeds this limit 
     you may need to split your query into separate requests.
 """, unsafe_allow_html=True)
 
