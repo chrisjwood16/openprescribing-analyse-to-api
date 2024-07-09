@@ -166,7 +166,7 @@ if st.button("Get individual product data"):
             # Check if orgIds is empty
             if not org_ids:
                 st.write("Queries without organisation(s) are not currently supported. Please select an organisation and try again.")
-
+            else:
                 # Check for mixed code types
                 if check_for_mixed_code_types(num_ids):
                     st.write("Warning: There may be a mixture of types of codes used (e.g. VMP, VTM), this may give unexpected results")
@@ -176,11 +176,8 @@ if st.button("Get individual product data"):
                             st.write("Operation canceled.")
                             # Handle cancellation process here
 
-                        with col2:
-                            if st.button("Continue"):
-                                extract_data(org_ids, num_ids)
+                    with col2:
+                        if st.button("Continue"):
+                            extract_data(org_ids, num_ids)
                 else:
                     extract_data(org_ids, num_ids)
-
-
-
