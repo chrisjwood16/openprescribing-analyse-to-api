@@ -173,4 +173,4 @@ if st.button("Get individual product data"):
         elif check_for_mixed_code_types(num_ids):
             st.warning('There may be a mixture of types of codes used in your query (e.g. VMP, VTM), this may give unexpected results e.g. double counting if there is overlap. Please check your query carefully.', icon="⚠️")
         if not error_raised:
-            extract_data(org, org_ids, num_ids)
+            extract_data(org, org_ids, num_ids) 
