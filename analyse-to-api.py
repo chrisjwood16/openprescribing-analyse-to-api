@@ -5,7 +5,7 @@ from urllib.parse import urlparse, parse_qs
 import base64
 
 # Constants
-API_CALL_LIMIT = 20
+API_CALL_LIMIT = 500
 
 def parse_url(url):
     # Parse URL
@@ -30,6 +30,21 @@ def fetch_name_for_num_id(num_id):
     else:
         return ''
 
+def check_for_mixed_code_types(codes):
+    has_vmp = False
+    has_shorter_code = False
+
+    for code in codes:
+        if len(code) == 15:
+            has_vmp = True
+        elif len(code) < 15:
+            has_shorter_code = True
+
+    if has_vmp and has_shorter_code:
+        return True
+    else:
+        return False
+
 # Streamlit app
 st.title("OpenPrescribing Individual Product Extractor")
 
@@ -44,10 +59,16 @@ st.write("""
 """, unsafe_allow_html=True)
 
 # Note for users
-st.write("**Note: This feature is currently in testing, so please treat any results with caution.**")
+st.write("**Note: This tool is currently in testing, so please treat any results with caution.**")
 
 # Input box for the URL
 url = st.text_input("Paste the URL here:")
+
+# Initialize session state variables if not already initialized
+if 'cancel' not in st.session_state:
+    st.session_state.cancel = False
+if 'continue_processing' not in st.session_state:
+    st.session_state.continue_processing = False
 
 # Button to run the extraction
 if st.button("Get individual product data"):
@@ -64,90 +85,109 @@ if st.button("Get individual product data"):
             org_ids = query_components.get('orgIds', [])[0].split(',') if 'orgIds' in query_components else []
             num_ids = query_components.get('numIds', [])[0].split(',') if 'numIds' in query_components else []
 
-            # Check if orgIds is empty
-            if not org_ids:
-                st.write("Queries without organisation(s) are not currently supported. Please select an organisation and try again.")
-            else:
-                # Calculate number of API calls
-                api_calls = calculate_api_calls(org_ids, num_ids)
-                
-                if api_calls > API_CALL_LIMIT:
-                    st.write(f"Search too complex - this would require too many API calls. ({api_calls} needed).")
-                    st.write("Reduce number of organisations or number of medication codes.")
+            # Check for mixed code types
+            if check_for_mixed_code_types(num_ids):
+                st.write("Warning: There may be a mixture of types of codes used (e.g. VMP, VTM), this may give unexpected results")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Cancel"):
+                        st.session_state.cancel = True
+                        st.session_state.continue_processing = False
+                        st.write("Operation canceled.")
+
+                with col2:
+                    if st.button("Continue"):
+                        st.session_state.continue_processing = True
+                        st.session_state.cancel = False
+                        st.write("Operation continued.")
+
+            if st.session_state.cancel:
+                st.write("Operation has been canceled by the user.")
+            elif st.session_state.continue_processing:
+                # Check if orgIds is empty
+                if not org_ids:
+                    st.write("Queries without organisation(s) are not currently supported. Please select an organisation and try again.")
                 else:
-                    # Display org, orgIds, and numIds
-                    st.write(f"Select organisation type: {org}")
-                    st.write(f"Selected organisations: {org_ids}")
-                    st.write(f"Selected products: {num_ids}")
-                    st.write(f"Number of API calls needed: {api_calls}")
+                    # Calculate number of API calls
+                    api_calls = calculate_api_calls(org_ids, num_ids)
+                    
+                    if api_calls > API_CALL_LIMIT:
+                        st.write(f"Search too complex - this would require too many API calls. ({api_calls} needed).")
+                        st.write("Reduce number of organisations or number of medication codes.")
+                    else:
+                        # Display org, orgIds, and numIds
+                        st.write(f"Select organisation type: {org}")
+                        st.write(f"Selected organisations: {org_ids}")
+                        st.write(f"Selected products: {num_ids}")
+                        st.write(f"Number of API calls needed: {api_calls}")
 
-                    # Fetch names for each num_id
-                    num_id_names = []
-                    total_calls = len(num_ids) + len(org_ids) * len(num_ids)
-                    call_count = 0
-                    progress_text = st.empty()
-                    progress_bar = st.progress(0)
-                    for num_id in num_ids:
-                        call_count += 1
-                        name = fetch_name_for_num_id(num_id)
-                        num_id_names.append({'num_id': num_id, 'name': name})
-                        
-                        # Update progress bar
-                        progress = int((call_count / total_calls) * 100)
-                        progress_bar.progress(progress)
-                        progress_text.text(f"Fetching data from API - API call {call_count}/{total_calls} ({progress}%)")
-
-                    num_id_df = pd.DataFrame(num_id_names)
-
-                    # List to store dataframes
-                    dataframes = []
-
-                    # Loop through each orgId and numId
-                    for org_id in org_ids:
+                        # Fetch names for each num_id
+                        num_id_names = []
+                        total_calls = len(num_ids) + len(org_ids) * len(num_ids)
+                        call_count = 0
+                        progress_text = st.empty()
+                        progress_bar = st.progress(0)
                         for num_id in num_ids:
                             call_count += 1
-                            # Make the GET request
-                            api_url = f"https://openprescribing.net/api/1.0/spending_by_org/?code={num_id}&format=json&org={org_id}&org_type={org}"
-                            response = requests.get(api_url)
-                            data = response.json()
-
-                            # Load into a pandas dataframe
-                            df = pd.DataFrame(data)
-
-                            # Add a column with num_id
-                            df['num_id'] = num_id
-
-                            # Append the dataframe to the list
-                            dataframes.append(df)
-
+                            name = fetch_name_for_num_id(num_id)
+                            num_id_names.append({'num_id': num_id, 'name': name})
+                            
                             # Update progress bar
                             progress = int((call_count / total_calls) * 100)
                             progress_bar.progress(progress)
                             progress_text.text(f"Fetching data from API - API call {call_count}/{total_calls} ({progress}%)")
 
-                    st.write("---")  # Add a horizontal divider
-                    st.write("### Results:")
+                        num_id_df = pd.DataFrame(num_id_names)
 
-                    # Concatenate all dataframes
-                    if dataframes:
-                        final_df = pd.concat(dataframes, ignore_index=True)
-                        # Merge with num_id names
-                        final_df = final_df.merge(num_id_df, on='num_id', how='left')
+                        # List to store dataframes
+                        dataframes = []
 
-                        # Move items, quantity, and actual_cost to the last columns
-                        cols = list(final_df.columns)
-                        for col in ['items', 'quantity', 'actual_cost']:
-                            if col in cols:
-                                cols.append(cols.pop(cols.index(col)))
-                        final_df = final_df[cols]
+                        # Loop through each orgId and numId
+                        for org_id in org_ids:
+                            for num_id in num_ids:
+                                call_count += 1
+                                # Make the GET request
+                                api_url = f"https://openprescribing.net/api/1.0/spending_by_org/?code={num_id}&format=json&org={org_id}&org_type={org}"
+                                response = requests.get(api_url)
+                                data = response.json()
 
-                        # Display the final dataframe
-                        st.dataframe(final_df)
-                        
-                        # Provide download link for the dataframe
-                        csv = final_df.to_csv(index=False)
-                        b64 = base64.b64encode(csv.encode()).decode()  # B64 encode
-                        href = f'<a href="data:file/csv;base64,{b64}" download="result.csv" style="font-size: 20px; color: white; background-color: #4CAF50; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;"><i class="fas fa-download"></i> Download CSV file</a>'
-                        st.markdown(href, unsafe_allow_html=True)
-                    else:
-                        st.write("No data returned from API calls.")
+                                # Load into a pandas dataframe
+                                df = pd.DataFrame(data)
+
+                                # Add a column with num_id
+                                df['num_id'] = num_id
+
+                                # Append the dataframe to the list
+                                dataframes.append(df)
+
+                                # Update progress bar
+                                progress = int((call_count / total_calls) * 100)
+                                progress_bar.progress(progress)
+                                progress_text.text(f"Fetching data from API - API call {call_count}/{total_calls} ({progress}%)")
+
+                        st.write("---")  # Add a horizontal divider
+                        st.write("### Results:")
+
+                        # Concatenate all dataframes
+                        if dataframes:
+                            final_df = pd.concat(dataframes, ignore_index=True)
+                            # Merge with num_id names
+                            final_df = final_df.merge(num_id_df, on='num_id', how='left')
+
+                            # Move items, quantity, and actual_cost to the last columns
+                            cols = list(final_df.columns)
+                            for col in ['items', 'quantity', 'actual_cost']:
+                                if col in cols:
+                                    cols.append(cols.pop(cols.index(col)))
+                            final_df = final_df[cols]
+
+                            # Display the final dataframe
+                            st.dataframe(final_df)
+                            
+                            # Provide download link for the dataframe
+                            csv = final_df.to_csv(index=False)
+                            b64 = base64.b64encode(csv.encode()).decode()  # B64 encode
+                            href = f'<a href="data:file/csv;base64,{b64}" download="result.csv" style="font-size: 20px; color: white; background-color: #4CAF50; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;"><i class="fas fa-download"></i> Download CSV file</a>'
+                            st.markdown(href, unsafe_allow_html=True)
+                        else:
+                            st.write("No data returned from API calls.")
