@@ -5,7 +5,7 @@ from urllib.parse import urlparse, parse_qs
 import base64
 
 # Constants
-API_CALL_LIMIT = 500
+API_CALL_LIMIT = 100
 
 def parse_url(url):
     # Parse URL
@@ -134,12 +134,12 @@ def extract_data(org_ids, num_ids):
 st.title("OpenPrescribing Individual Product Extractor")
 
 # Description
-st.write("""
+st.write(f"""
     This app takes an <a href="https://openprescribing.net/analyse/">OpenPrescribing analyse URL</a> and uses the 
     <a href="https://openprescribing.net/api/">OpenPrescribing API</a> to extract data on the specified chemical, presentation 
     or BNF section for the selected organisations. Results can be downloaded as a CSV file for further analysis. 
     Please note this tool does not currently support requests that contain a denominator and all requests must include an organisation. 
-    To prevent performance issues the app is limited to 20 calls to the API. If your request exceeds this limit 
+    To prevent performance issues the app is limited to {API_CALL_LIMIT} calls to the API. If your request exceeds this limit 
     you may need to split your query into separate requests.
 """, unsafe_allow_html=True)
 
@@ -170,13 +170,11 @@ if st.button("Get individual product data"):
                 # Check for mixed code types
                 if check_for_mixed_code_types(num_ids):
                     st.write("Warning: There may be a mixture of types of codes used (e.g. VMP, VTM), this may give unexpected results")
-                        col1, col2 = st.columns(2)
-                        cancel = False
-                        with col1:
-                            if st.button("Cancel"):
-                                cancel = True
-                                st.write("Operation canceled.")
-                                # Handle cancellation process here
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Cancel"):
+                            st.write("Operation canceled.")
+                            # Handle cancellation process here
 
                         with col2:
                             if st.button("Continue"):
